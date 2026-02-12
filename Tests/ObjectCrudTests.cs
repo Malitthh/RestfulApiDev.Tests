@@ -9,7 +9,7 @@ using System.Text.Json;
 
 namespace RestfulAPI.Automation.Tests;
 
-// Named collection to control execution grouping (and future expansion).
+//Named collection to control execution grouping (and future expansion).
 [CollectionDefinition("RestfulAPI")]
 public sealed class RestfulApiDevCollectionDefinition { }
 
@@ -22,11 +22,10 @@ public sealed class ObjectsCrudTests : IClassFixture<ApiFixture>
     public ObjectsCrudTests(ApiFixture fixture, ITestOutputHelper output)
     {
         _output = output;
-        _api = fixture.CreateClient(output); // logs requests/responses via ITestOutputHelper
+        _api = fixture.CreateClient(output);
     }
 
-    // ----- Helpers -----
-
+    //Helpers
     private static ObjectCreateRequest MakeUnique(ObjectCreateRequest template, string? suffix = null)
  => new()
  {
@@ -64,26 +63,20 @@ public sealed class ObjectsCrudTests : IClassFixture<ApiFixture>
         return p.GetDouble();
     }
 
-    // ----- Tests -----
-
-    [Fact(DisplayName = "TC01: GET /objects returns a non-empty list with ids")]
+    //Tests
+    [Fact(DisplayName = "TC01: GET-objects returns a non-empty list with ids")]
     public async Task GetAllObjects_ReturnsNonEmptyList()
     {
-        _output.WriteLine("=== TEST: Get list of all objects ===");
-
         var (status, list) = await _api.GetAllAsync();
-
         Assert.Equal(HttpStatusCode.OK, status);
         Assert.NotNull(list);
         Assert.NotEmpty(list!);
         Assert.All(list!, o => Assert.False(string.IsNullOrWhiteSpace(o.Id)));
     }
 
-    [Fact(DisplayName = "TC02: POST /objects using JSON testdata creates object and returns id + createdAt")]
+    [Fact(DisplayName = "TC02: POST-objects using JSON testdata creates object and returns id + createdAt")]
     public async Task CreateObject_FromJson_ReturnsIdAndCreatedAt()
     {
-        _output.WriteLine("=== TEST: Create object from TestData/create-ipad.json ===");
-
         var template = TestDataLoader.Load<ObjectCreateRequest>("create-ipad.json");
         var req = MakeUnique(template);
 
@@ -95,7 +88,6 @@ public sealed class ObjectsCrudTests : IClassFixture<ApiFixture>
         Assert.Equal(req.Name, created.Name);
         Assert.NotNull(created.CreatedAt);
 
-        // Field-level checks (realistic device fields)
         Assert.Equal("Apple", RequireString(created.Data, "brand"));
         Assert.Equal("256 GB", RequireString(created.Data, "capacity"));
         Assert.Equal(10.9, RequireNumber(created.Data, "screenSize"));
@@ -106,11 +98,9 @@ public sealed class ObjectsCrudTests : IClassFixture<ApiFixture>
         AssertDeleteAcceptable(delStatus);
     }
 
-    [Fact(DisplayName = "TC03: GET /objects/{id} returns the object created via POST")]
+    [Fact(DisplayName = "TC03: GET-objects {id} returns the object created via POST")]
     public async Task GetById_ReturnsCreatedObject()
     {
-        _output.WriteLine("=== TEST: Create -> GetById -> Cleanup ===");
-
         var template = TestDataLoader.Load<ObjectCreateRequest>("create-ipad.json");
         var req = MakeUnique(template);
 
@@ -139,11 +129,9 @@ public sealed class ObjectsCrudTests : IClassFixture<ApiFixture>
         }
     }
 
-    [Fact(DisplayName = "TC04: PUT /objects/{id} using JSON testdata updates and persists fields")]
+    [Fact(DisplayName = "TC04: PUT-objects {id} using JSON testdata updates and persists fields")]
     public async Task UpdateObject_FromJson_PersistsChanges()
     {
-        _output.WriteLine("=== TEST: Create -> Update(PUT) -> Verify -> Cleanup ===");
-
         var createTemplate = TestDataLoader.Load<ObjectCreateRequest>("create-ipad.json");
         var createReq = MakeUnique(createTemplate);
 
@@ -156,9 +144,7 @@ public sealed class ObjectsCrudTests : IClassFixture<ApiFixture>
         try
         {
             var updateTemplate = TestDataLoader.Load<ObjectCreateRequest>("update-ipad.json");
-            // keep unique name (optional); update payload is realistic too
             var updateReq = MakeUnique(updateTemplate);
-
             var (putStatus, updated) = await _api.PutAsync(id, updateReq);
 
             Assert.Equal(HttpStatusCode.OK, putStatus);
@@ -169,8 +155,6 @@ public sealed class ObjectsCrudTests : IClassFixture<ApiFixture>
 
             if (createdAt is not null && updated.UpdatedAt is not null)
                 Assert.True(updated.UpdatedAt >= createdAt, "updatedAt should be >= createdAt");
-
-            // Verify persisted via GET
             var (getStatus, fetched) = await _api.GetByIdAsync(id);
             Assert.Equal(HttpStatusCode.OK, getStatus);
             Assert.NotNull(fetched);
@@ -186,11 +170,9 @@ public sealed class ObjectsCrudTests : IClassFixture<ApiFixture>
         }
     }
 
-    [Fact(DisplayName = "TC05: DELETE /objects/{id} removes object and GET after delete is not OK")]
+    [Fact(DisplayName = "TC05: DELETE-objects {id} removes object and GET after delete is not OK")]
     public async Task DeleteObject_RemovesResource()
     {
-        _output.WriteLine("=== TEST: Create -> Delete -> Verify GET not OK ===");
-
         var template = TestDataLoader.Load<ObjectCreateRequest>("create-ipad.json");
         var req = MakeUnique(template);
 
@@ -204,53 +186,41 @@ public sealed class ObjectsCrudTests : IClassFixture<ApiFixture>
 
         if (delBody?.Message is not null)
             _output.WriteLine($"Delete message: {delBody.Message}");
-
         var (getAfterStatus, _) = await _api.GetByIdAsync(id);
         Assert.NotEqual(HttpStatusCode.OK, getAfterStatus);
     }
 
-    [Fact(DisplayName = "TC06: GET unknown id returns non-OK")]
+    [Fact(DisplayName = "TC06: GET-object unknown {id} returns non-OK")]
     public async Task GetUnknownId_ReturnsNonOk()
     {
-        _output.WriteLine("=== TEST: GET unknown id should be non-OK ===");
-
         var unknownId = Guid.NewGuid().ToString("N");
         var (status, _) = await _api.GetByIdAsync(unknownId);
-
         Assert.NotEqual(HttpStatusCode.OK, status);
     }
 
-    [Fact(DisplayName = "TC07: POST with empty name parameter still creates object")]
+    [Fact(DisplayName = "TC07: POST-object with empty name parameter still creates object")]
     public async Task Post_Without_Name_Should_Return_Error()
     {
-        _output.WriteLine("=== TEST: POST without required field 'name' ===");
-
         var invalidRequest = new ObjectCreateRequest
         {
-            Name = "", // or null if you allow nullable
+            Name = "",
             Data = new Dictionary<string, object?>
             {
                 ["brand"] = "Apple",
                 ["price"] = 500
             }
         };
-
         var (status, body) = await _api.CreateAsync(invalidRequest);
-
         Assert.True((int)status >= 200,
         $"Expected 2xx status {(int)status} {status}");
     }
 
-    [Fact(DisplayName = "TC08:GET unknown id should return non-success")]
+    [Fact(DisplayName = "TC08:GET unknown {id} should return non-success")]
     [Trait("Category", "Smoke")]
     public async Task Get_Unknown_Id_Should_Return_NonSuccess()
     {
         var unknownId = Guid.NewGuid().ToString("N");
-
         var (status, _) = await _api.GetByIdAsync(unknownId);
-
-
-
         Assert.Equal(HttpStatusCode.NotFound, status);
     }
 

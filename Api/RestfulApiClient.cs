@@ -21,7 +21,7 @@ public sealed class RestfulApiClient
         _output = output;
     }
 
-    // --------- Public methods expected by tests ---------
+    //Public methods expected by tests
 
     public async Task<(HttpStatusCode Status, List<ObjectResponse>? Body)> GetAllAsync()
     {
@@ -87,7 +87,7 @@ public sealed class RestfulApiClient
         return (response.StatusCode, body);
     }
 
-    // --------- Logging + JSON helpers ---------
+    //Logging & JSON helpers
 
     private async Task LogResponse(HttpResponseMessage response)
     {
