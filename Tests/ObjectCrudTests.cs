@@ -45,7 +45,7 @@ public sealed class ObjectsCrudTests : IClassFixture<ApiFixture>
     {
         Assert.True(data.HasValue, "Expected data to be present");
         var el = data!.Value;
-        Assert.True(el.ValueKind == JsonValueKind.Object, $"Expected data to be an object, got {el.ValueKind}");
+        Assert.True(el.ValueKind == JsonValueKind.Object, $"Expected data to be an object {el.ValueKind}");
         Assert.True(el.TryGetProperty(prop, out var p), $"Expected data.{prop} to exist");
         Assert.Equal(JsonValueKind.String, p.ValueKind);
         var s = p.GetString();
@@ -57,7 +57,7 @@ public sealed class ObjectsCrudTests : IClassFixture<ApiFixture>
     {
         Assert.True(data.HasValue, "Expected data to be present");
         var el = data!.Value;
-        Assert.True(el.ValueKind == JsonValueKind.Object, $"Expected data to be an object, got {el.ValueKind}");
+        Assert.True(el.ValueKind == JsonValueKind.Object, $"Expected data to be an object {el.ValueKind}");
         Assert.True(el.TryGetProperty(prop, out var p), $"Expected data.{prop} to exist");
         Assert.Equal(JsonValueKind.Number, p.ValueKind);
         return p.GetDouble();
@@ -74,7 +74,7 @@ public sealed class ObjectsCrudTests : IClassFixture<ApiFixture>
         Assert.All(list!, o => Assert.False(string.IsNullOrWhiteSpace(o.Id)));
     }
 
-    [Fact(DisplayName = "TC02: POST-objects using JSON testdata creates object and returns id + createdAt")]
+    [Fact(DisplayName = "TC02: POST-objects using JSON testdata creates object and returns id")]
     public async Task CreateObject_FromJson_ReturnsIdAndCreatedAt()
     {
         var template = TestDataLoader.Load<ObjectCreateRequest>("create-ipad.json");
