@@ -1,7 +1,7 @@
 using System.Text.Json;
 using System.Text.Json.Serialization;
 
-namespace RestfulApiDev.Tests.Api;
+namespace RestfulAPI.Automation;
 
 public sealed class ObjectCreateRequest
 {
@@ -21,7 +21,6 @@ public sealed class ObjectResponse
     [JsonPropertyName("name")]
     public string? Name { get; init; }
 
-    // Keep as JsonElement to avoid over-modeling flexible payloads
     [JsonPropertyName("data")]
     public JsonElement? Data { get; init; }
 

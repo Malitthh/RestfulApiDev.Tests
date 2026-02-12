@@ -1,8 +1,8 @@
 {
   "version": 2,
-  "dgSpecHash": "A0eXrRbGsLI=",
+  "dgSpecHash": "aTB+xnW78L0=",
   "success": true,
-  "projectFilePath": "D:\\Learning\\Source\\Repos\\RestfulApiDev.Tests\\RestfulApiDev.Tests.csproj",
+  "projectFilePath": "D:\\Learning\\Source\\Repos\\RestfulAPI-Automation\\RestfulApiDev.Tests.csproj",
   "expectedPackageFiles": [
     "C:\\Users\\MalithSenadheera\\.nuget\\packages\\coverlet.collector\\6.0.4\\coverlet.collector.6.0.4.nupkg.sha512",
     "C:\\Users\\MalithSenadheera\\.nuget\\packages\\microsoft.codecoverage\\18.0.1\\microsoft.codecoverage.18.0.1.nupkg.sha512",

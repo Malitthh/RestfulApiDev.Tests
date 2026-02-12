@@ -1,23 +1,18 @@
-using RestfulApiDev.Tests.Api;
+using RestfulAPI.Automation;
+using Xunit.Abstractions;
 
-namespace RestfulApiDev.Tests.Fixtures;
+namespace RestfulAPI.Automation.Fixtures;
 
-public sealed class ApiFixture : IDisposable
+public sealed class ApiFixture
 {
-    public RestfulApiClient Client { get; }
-
-    private readonly HttpClient _http;
-
-    public ApiFixture()
+    public RestfulApiClient CreateClient(ITestOutputHelper output)
     {
-        _http = new HttpClient
+        var http = new HttpClient
         {
             BaseAddress = new Uri("https://api.restful-api.dev/"),
-            Timeout = TimeSpan.FromSeconds(30),
+            Timeout = TimeSpan.FromSeconds(30)
         };
 
-        Client = new RestfulApiClient(_http);
+        return new RestfulApiClient(http, output);
     }
-
-    public void Dispose() => _http.Dispose();
 }

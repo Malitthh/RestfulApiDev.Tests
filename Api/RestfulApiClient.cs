@@ -1,112 +1,119 @@
 using System.Net;
 using System.Text;
 using System.Text.Json;
+using Xunit.Abstractions;
 
-namespace RestfulApiDev.Tests.Api;
+namespace RestfulAPI.Automation;
 
 public sealed class RestfulApiClient
 {
-    private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
+    private static readonly JsonSerializerOptions JsonOptions =
+    new(JsonSerializerDefaults.Web) { WriteIndented = true };
 
     private readonly HttpClient _http;
+    private readonly ITestOutputHelper _output;
 
-    public RestfulApiClient(HttpClient http)
+    public RestfulApiClient(HttpClient http, ITestOutputHelper output)
     {
         _http = http;
         _http.BaseAddress ??= new Uri("https://api.restful-api.dev/");
         _http.Timeout = TimeSpan.FromSeconds(30);
+        _output = output;
     }
 
-    // ---- Public API methods ----
-
-    public Task<HttpResponseMessage> GetAllRawAsync() => SendWithRetryAsync(() => _http.GetAsync("objects"));
+    // --------- Public methods expected by tests ---------
 
     public async Task<(HttpStatusCode Status, List<ObjectResponse>? Body)> GetAllAsync()
     {
-        using var resp = await GetAllRawAsync();
-        return (resp.StatusCode, await ReadJsonOrNullAsync<List<ObjectResponse>>(resp));
+        _output.WriteLine("----- REQUEST: GET /objects -----");
+        var response = await _http.GetAsync("objects");
+        await LogResponse(response);
+
+        var body = await Deserialize<List<ObjectResponse>>(response);
+        return (response.StatusCode, body);
     }
 
     public async Task<(HttpStatusCode Status, ObjectResponse? Body)> CreateAsync(ObjectCreateRequest req)
     {
         var json = JsonSerializer.Serialize(req, JsonOptions);
-        using var resp = await SendWithRetryAsync(() =>
-        _http.PostAsync("objects", new StringContent(json, Encoding.UTF8, "application/json")));
 
-        return (resp.StatusCode, await ReadJsonOrNullAsync<ObjectResponse>(resp));
+        _output.WriteLine("----- REQUEST: POST /objects -----");
+        _output.WriteLine(json);
+
+        var response = await _http.PostAsync("objects",
+        new StringContent(json, Encoding.UTF8, "application/json"));
+
+        await LogResponse(response);
+
+        var body = await Deserialize<ObjectResponse>(response);
+        return (response.StatusCode, body);
     }
 
     public async Task<(HttpStatusCode Status, ObjectResponse? Body)> GetByIdAsync(string id)
     {
-        using var resp = await SendWithRetryAsync(() => _http.GetAsync($"objects/{Uri.EscapeDataString(id)}"));
-        return (resp.StatusCode, await ReadJsonOrNullAsync<ObjectResponse>(resp));
+        _output.WriteLine($"----- REQUEST: GET /objects/{id} -----");
+
+        var response = await _http.GetAsync($"objects/{id}");
+        await LogResponse(response);
+
+        var body = await Deserialize<ObjectResponse>(response);
+        return (response.StatusCode, body);
     }
 
     public async Task<(HttpStatusCode Status, ObjectResponse? Body)> PutAsync(string id, ObjectCreateRequest req)
     {
         var json = JsonSerializer.Serialize(req, JsonOptions);
-        using var resp = await SendWithRetryAsync(() =>
-        _http.PutAsync($"objects/{Uri.EscapeDataString(id)}", new StringContent(json, Encoding.UTF8, "application/json")));
 
-        return (resp.StatusCode, await ReadJsonOrNullAsync<ObjectResponse>(resp));
+        _output.WriteLine($"----- REQUEST: PUT /objects/{id} -----");
+        _output.WriteLine(json);
+
+        var response = await _http.PutAsync($"objects/{id}",
+        new StringContent(json, Encoding.UTF8, "application/json"));
+
+        await LogResponse(response);
+
+        var body = await Deserialize<ObjectResponse>(response);
+        return (response.StatusCode, body);
     }
 
     public async Task<(HttpStatusCode Status, DeleteResponse? Body)> DeleteAsync(string id)
     {
-        using var resp = await SendWithRetryAsync(() => _http.DeleteAsync($"objects/{Uri.EscapeDataString(id)}"));
-        return (resp.StatusCode, await ReadJsonOrNullAsync<DeleteResponse>(resp));
+        _output.WriteLine($"----- REQUEST: DELETE /objects/{id} -----");
+
+        var response = await _http.DeleteAsync($"objects/{id}");
+        await LogResponse(response);
+
+        var body = await Deserialize<DeleteResponse>(response);
+        return (response.StatusCode, body);
     }
 
-    // ---- Helpers ----
+    // --------- Logging + JSON helpers ---------
 
-    private static async Task<T?> ReadJsonOrNullAsync<T>(HttpResponseMessage resp)
+    private async Task LogResponse(HttpResponseMessage response)
     {
-        if (resp.Content is null) return default;
-        var text = await resp.Content.ReadAsStringAsync();
+        var body = response.Content is null ? "" : await response.Content.ReadAsStringAsync();
+
+        _output.WriteLine("----- RESPONSE -----");
+        _output.WriteLine($"Status: {(int)response.StatusCode} {response.StatusCode}");
+        if (!string.IsNullOrWhiteSpace(body))
+            _output.WriteLine(body);
+        _output.WriteLine("--------------------");
+    }
+
+    private static async Task<T?> Deserialize<T>(HttpResponseMessage response)
+    {
+        if (response.Content is null) return default;
+
+        var text = await response.Content.ReadAsStringAsync();
         if (string.IsNullOrWhiteSpace(text)) return default;
 
-        try { return JsonSerializer.Deserialize<T>(text, JsonOptions); }
-        catch { return default; }
-    }
-
-    /// <summary>
-       /// Minimal retry to reduce flakiness against public APIs. Retries transient status codes + network issues.
-       /// </summary>
-    private static async Task<HttpResponseMessage> SendWithRetryAsync(Func<Task<HttpResponseMessage>> action)
-    {
-        const int maxAttempts = 3;
-        var delay = TimeSpan.FromMilliseconds(250);
-
-        for (var attempt = 1; attempt <= maxAttempts; attempt++)
+        try
         {
-            try
-            {
-                var resp = await action();
-
-                if (IsTransient(resp.StatusCode) && attempt < maxAttempts)
-                {
-                    resp.Dispose();
-                    await Task.Delay(delay);
-                    delay = TimeSpan.FromMilliseconds(delay.TotalMilliseconds * 2);
-                    continue;
-                }
-
-                return resp;
-            }
-            catch when (attempt < maxAttempts)
-            {
-                await Task.Delay(delay);
-                delay = TimeSpan.FromMilliseconds(delay.TotalMilliseconds * 2);
-            }
+            return JsonSerializer.Deserialize<T>(text, new JsonSerializerOptions(JsonSerializerDefaults.Web));
         }
-
-        // If we got here, last attempt threw; let it bubble naturally.
-        return await action();
-    }
-
-    private static bool IsTransient(HttpStatusCode code)
-    {
-        var n = (int)code;
-        return n == 429 || (n >= 500 && n <= 599);
+        catch
+        {
+            return default;
+        }
     }
 }

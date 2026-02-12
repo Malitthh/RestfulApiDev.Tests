@@ -1,0 +1,12 @@
+{
+  "name": "Apple iPad Air Test - Updated",
+  "data": {
+    "brand": "Apple",
+    "model": "iPad Air",
+    "capacity": "512 GB",
+    "screenSize": 10.9,
+    "color": "Space Gray",
+    "price": 999.99,
+    "generation": "6th"
+  }
+}

@@ -1,231 +1,257 @@
+using System.ComponentModel;
 using System.Net;
 using System.Text.Json;
-using RestfulApiDev.Tests.Api;
-using RestfulApiDev.Tests.Fixtures;
+using RestfulAPI.Automation;
+using RestfulAPI.Automation.Fixtures;
+using RestfulAPI.Automation.Utils;
 using Xunit;
+using Xunit.Abstractions;
 
-namespace RestfulApiDev.Tests.Tests;
+namespace RestfulAPI.Automation.Tests;
 
-[Collection("RestfulApiDev")]
+// Named collection to control execution grouping (and future expansion).
+[CollectionDefinition("RestfulAPI")]
+public sealed class RestfulApiDevCollectionDefinition { }
+
+[Collection("RestfulAPI")]
 public sealed class ObjectsCrudTests : IClassFixture<ApiFixture>
 {
-   private readonly RestfulApiClient _api;
+    private readonly RestfulApiClient _api;
+    private readonly ITestOutputHelper _output;
 
-   public ObjectsCrudTests(ApiFixture fixture) => _api = fixture.Client;
+    public ObjectsCrudTests(ApiFixture fixture, ITestOutputHelper output)
+    {
+        _output = output;
+        _api = fixture.CreateClient(output); // logs requests/responses via ITestOutputHelper
+    }
 
-   // Create unique names per run to avoid collisions in shared public API.
-   private static ObjectCreateRequest NewObject(string prefix = "xunit")
-       => new()
-       {
-           Name = $"{prefix}-{Guid.NewGuid():N}",
-           Data = new Dictionary<string, object?>
-           {
-               ["source"] = "xunit",
-               ["version"] = 1,
-               ["active"] = true
-           }
-       };
+    // ----- Helpers -----
 
-   private static void AssertOkOrCreated(HttpStatusCode status)
-       => Assert.True(status is HttpStatusCode.OK or HttpStatusCode.Created,
-           $"Expected 200/201 but got {(int)status} {status}");
+    private static ObjectCreateRequest MakeUnique(ObjectCreateRequest template, string? suffix = null)
+ => new()
+ {
+     Name = $"{template.Name} {(suffix ?? Guid.NewGuid().ToString("N"))}",
+     Data = template.Data is null ? null : new Dictionary<string, object?>(template.Data)
+ };
 
-   private static void AssertDeleteAcceptable(HttpStatusCode status)
-       => Assert.True(status is HttpStatusCode.OK or HttpStatusCode.Accepted or HttpStatusCode.NoContent,
-           $"Expected 200/202/204 but got {(int)status} {status}");
+    private static void AssertOkOrCreated(HttpStatusCode status)
+    => Assert.True(status is HttpStatusCode.OK or HttpStatusCode.Created,
+    $"Expected 200 {(int)status} {status}");
 
-   private static int? TryReadInt(JsonElement? element, string property)
-   {
-       if (element is null || !element.Value.ValueKind.Equals(JsonValueKind.Object)) return null;
-       return element.Value.TryGetProperty(property, out var prop) && prop.ValueKind == JsonValueKind.Number
-           ? prop.GetInt32()
-           : null;
-   }
+    private static void AssertDeleteAcceptable(HttpStatusCode status)
+    => Assert.True(status is HttpStatusCode.OK or HttpStatusCode.Accepted or HttpStatusCode.NoContent,
+    $"Expected 200 {(int)status} {status}");
 
-   private static bool? TryReadBool(JsonElement? element, string property)
-   {
-       if (element is null || !element.Value.ValueKind.Equals(JsonValueKind.Object)) return null;
-       return element.Value.TryGetProperty(property, out var prop) && prop.ValueKind is JsonValueKind.True or JsonValueKind.False
-           ? prop.GetBoolean()
-           : null;
-   }
+    private static string RequireString(JsonElement? data, string prop)
+    {
+        Assert.True(data.HasValue, "Expected data to be present");
+        var el = data!.Value;
+        Assert.True(el.ValueKind == JsonValueKind.Object, $"Expected data to be an object, got {el.ValueKind}");
+        Assert.True(el.TryGetProperty(prop, out var p), $"Expected data.{prop} to exist");
+        Assert.Equal(JsonValueKind.String, p.ValueKind);
+        var s = p.GetString();
+        Assert.False(string.IsNullOrWhiteSpace(s));
+        return s!;
+    }
 
-   [Fact(DisplayName = "1) GET /objects returns a list with ids")]
-   public async Task GetAll_Returns_List_With_Ids()
-   {
-       var (status, list) = await _api.GetAllAsync();
+    private static double RequireNumber(JsonElement? data, string prop)
+    {
+        Assert.True(data.HasValue, "Expected data to be present");
+        var el = data!.Value;
+        Assert.True(el.ValueKind == JsonValueKind.Object, $"Expected data to be an object, got {el.ValueKind}");
+        Assert.True(el.TryGetProperty(prop, out var p), $"Expected data.{prop} to exist");
+        Assert.Equal(JsonValueKind.Number, p.ValueKind);
+        return p.GetDouble();
+    }
 
-       Assert.Equal(HttpStatusCode.OK, status);
-       Assert.NotNull(list);
-       Assert.NotEmpty(list!);
-       Assert.All(list!, o => Assert.False(string.IsNullOrWhiteSpace(o.Id)));
-   }
+    // ----- Tests -----
 
-   [Fact(DisplayName = "2) POST /objects returns id, echoes name, includes createdAt")]
-   public async Task Post_Creates_Object_Returns_Expected_Fields()
-   {
-       var req = NewObject("create");
-       var (status, created) = await _api.CreateAsync(req);
+    [Fact(DisplayName = "TC01: GET /objects returns a non-empty list with ids")]
+    public async Task GetAllObjects_ReturnsNonEmptyList()
+    {
+        _output.WriteLine("=== TEST: Get list of all objects ===");
 
-       AssertOkOrCreated(status);
-       Assert.NotNull(created);
-       Assert.False(string.IsNullOrWhiteSpace(created!.Id));
-       Assert.Equal(req.Name, created.Name);
-       Assert.NotNull(created.CreatedAt);
+        var (status, list) = await _api.GetAllAsync();
 
-       // cleanup
-       var (delStatus, _) = await _api.DeleteAsync(created.Id!);
-       AssertDeleteAcceptable(delStatus);
-   }
+        Assert.Equal(HttpStatusCode.OK, status);
+        Assert.NotNull(list);
+        Assert.NotEmpty(list!);
+        Assert.All(list!, o => Assert.False(string.IsNullOrWhiteSpace(o.Id)));
+    }
 
-   [Fact(DisplayName = "3) GET by id returns the created object")]
-   public async Task GetById_Returns_Created_Object()
-   {
-       var req = NewObject("getbyid");
-       var (createStatus, created) = await _api.CreateAsync(req);
+    [Fact(DisplayName = "TC02: POST /objects using JSON testdata creates object and returns id + createdAt")]
+    public async Task CreateObject_FromJson_ReturnsIdAndCreatedAt()
+    {
+        _output.WriteLine("=== TEST: Create object from TestData/create-ipad.json ===");
 
-       AssertOkOrCreated(createStatus);
-       Assert.NotNull(created);
-       var id = created!.Id!;
-       try
-       {
-           var (getStatus, fetched) = await _api.GetByIdAsync(id);
+        var template = TestDataLoader.Load<ObjectCreateRequest>("create-ipad.json");
+        var req = MakeUnique(template);
 
-           Assert.Equal(HttpStatusCode.OK, getStatus);
-           Assert.NotNull(fetched);
-           Assert.Equal(id, fetched!.Id);
-           Assert.Equal(req.Name, fetched.Name);
-       }
-       finally
-       {
-           var (delStatus, _) = await _api.DeleteAsync(id);
-           AssertDeleteAcceptable(delStatus);
-       }
-   }
+        var (status, created) = await _api.CreateAsync(req);
 
-   [Fact(DisplayName = "4) PUT updates object and persists changes")]
-   public async Task Put_Updates_Object_And_Persists()
-   {
-       var req = NewObject("put");
-       var (createStatus, created) = await _api.CreateAsync(req);
+        AssertOkOrCreated(status);
+        Assert.NotNull(created);
+        Assert.False(string.IsNullOrWhiteSpace(created!.Id));
+        Assert.Equal(req.Name, created.Name);
+        Assert.NotNull(created.CreatedAt);
 
-       AssertOkOrCreated(createStatus);
-       Assert.NotNull(created);
+        // Field-level checks (realistic device fields)
+        Assert.Equal("Apple", RequireString(created.Data, "brand"));
+        Assert.Equal("256 GB", RequireString(created.Data, "capacity"));
+        Assert.Equal(10.9, RequireNumber(created.Data, "screenSize"));
+        Assert.Equal(799.99, RequireNumber(created.Data, "price"));
 
-       var id = created!.Id!;
-       var createdAt = created.CreatedAt;
+        // cleanup
+        var (delStatus, _) = await _api.DeleteAsync(created.Id!);
+        AssertDeleteAcceptable(delStatus);
+    }
 
-       try
-       {
-           var updatedReq = new ObjectCreateRequest
-           {
-               Name = req.Name + "-updated",
-               Data = new Dictionary<string, object?>
-               {
-                   ["source"] = "xunit",
-                   ["version"] = 2,
-                   ["active"] = false,
-                   ["note"] = "updated via PUT"
-               }
-           };
+    [Fact(DisplayName = "TC03: GET /objects/{id} returns the object created via POST")]
+    public async Task GetById_ReturnsCreatedObject()
+    {
+        _output.WriteLine("=== TEST: Create -> GetById -> Cleanup ===");
 
-           var (putStatus, updated) = await _api.PutAsync(id, updatedReq);
+        var template = TestDataLoader.Load<ObjectCreateRequest>("create-ipad.json");
+        var req = MakeUnique(template);
 
-           Assert.Equal(HttpStatusCode.OK, putStatus);
-           Assert.NotNull(updated);
-           Assert.Equal(id, updated!.Id);
-           Assert.Equal(updatedReq.Name, updated.Name);
-           Assert.NotNull(updated.UpdatedAt);
+        var (createStatus, created) = await _api.CreateAsync(req);
+        AssertOkOrCreated(createStatus);
+        Assert.NotNull(created);
+        var id = created!.Id!;
+        try
+        {
+            var (getStatus, fetched) = await _api.GetByIdAsync(id);
 
-           // Optional stronger assertion if API provides createdAt consistently
-           if (createdAt is not null && updated.UpdatedAt is not null)
-               Assert.True(updated.UpdatedAt >= createdAt, "updatedAt should be >= createdAt");
+            Assert.Equal(HttpStatusCode.OK, getStatus);
+            Assert.NotNull(fetched);
+            Assert.Equal(id, fetched!.Id);
+            Assert.Equal(req.Name, fetched.Name);
 
-           // Verify persisted
-           var (getStatus, fetched) = await _api.GetByIdAsync(id);
+            // Verify key fields persisted
+            Assert.Equal("Apple", RequireString(fetched.Data, "brand"));
+            Assert.Equal("iPad Air", RequireString(fetched.Data, "model"));
+            Assert.Equal("256 GB", RequireString(fetched.Data, "capacity"));
+        }
+        finally
+        {
+            var (delStatus, _) = await _api.DeleteAsync(id);
+            AssertDeleteAcceptable(delStatus);
+        }
+    }
 
-           Assert.Equal(HttpStatusCode.OK, getStatus);
-           Assert.NotNull(fetched);
-           Assert.Equal(updatedReq.Name, fetched!.Name);
+    [Fact(DisplayName = "TC04: PUT /objects/{id} using JSON testdata updates and persists fields")]
+    public async Task UpdateObject_FromJson_PersistsChanges()
+    {
+        _output.WriteLine("=== TEST: Create -> Update(PUT) -> Verify -> Cleanup ===");
 
-           // Verify data fields persisted (at least some)
-           Assert.Equal(2, TryReadInt(fetched.Data, "version"));
-           Assert.Equal(false, TryReadBool(fetched.Data, "active"));
-       }
-       finally
-       {
-           var (delStatus, _) = await _api.DeleteAsync(id);
-           AssertDeleteAcceptable(delStatus);
-       }
-   }
+        var createTemplate = TestDataLoader.Load<ObjectCreateRequest>("create-ipad.json");
+        var createReq = MakeUnique(createTemplate);
 
-   [Fact(DisplayName = "5) DELETE removes object and subsequent GET is not OK")]
-   public async Task Delete_Removes_Object()
-   {
-       var req = NewObject("delete");
-       var (createStatus, created) = await _api.CreateAsync(req);
+        var (createStatus, created) = await _api.CreateAsync(createReq);
+        AssertOkOrCreated(createStatus);
+        Assert.NotNull(created);
+        var id = created!.Id!;
+        var createdAt = created.CreatedAt;
 
-       AssertOkOrCreated(createStatus);
-       Assert.NotNull(created);
-       var id = created!.Id!;
+        try
+        {
+            var updateTemplate = TestDataLoader.Load<ObjectCreateRequest>("update-ipad.json");
+            // keep unique name (optional); update payload is realistic too
+            var updateReq = MakeUnique(updateTemplate);
 
-       var (delStatus, _) = await _api.DeleteAsync(id);
-       AssertDeleteAcceptable(delStatus);
+            var (putStatus, updated) = await _api.PutAsync(id, updateReq);
 
-       var (getAfterStatus, _) = await _api.GetByIdAsync(id);
-       Assert.NotEqual(HttpStatusCode.OK, getAfterStatus);
-   }
+            Assert.Equal(HttpStatusCode.OK, putStatus);
+            Assert.NotNull(updated);
+            Assert.Equal(id, updated!.Id);
+            Assert.Equal(updateReq.Name, updated.Name);
+            Assert.NotNull(updated.UpdatedAt);
 
-   [Fact(DisplayName = "GET unknown id returns non-OK (contract/safety test)")]
-   public async Task Get_Unknown_Id_Is_Not_Ok()
-   {
-       // Use a random GUID as an id. API might return 404, 400, etc.
-       var unknownId = Guid.NewGuid().ToString("N");
+            if (createdAt is not null && updated.UpdatedAt is not null)
+                Assert.True(updated.UpdatedAt >= createdAt, "updatedAt should be >= createdAt");
 
-       var (status, body) = await _api.GetByIdAsync(unknownId);
+            // Verify persisted via GET
+            var (getStatus, fetched) = await _api.GetByIdAsync(id);
+            Assert.Equal(HttpStatusCode.OK, getStatus);
+            Assert.NotNull(fetched);
 
-       Assert.NotEqual(HttpStatusCode.OK, status);
-       // Some APIs return an error JSON; we don't enforce shape to keep test robust.
-       _ = body;
-   }
+            Assert.Equal("512 GB", RequireString(fetched!.Data, "capacity"));
+            Assert.Equal(999.99, RequireNumber(fetched.Data, "price"));
+            Assert.Equal("Space Gray", RequireString(fetched.Data, "color"));
+        }
+        finally
+        {
+            var (delStatus, _) = await _api.DeleteAsync(id);
+            AssertDeleteAcceptable(delStatus);
+        }
+    }
 
-   [Fact(DisplayName = "POST creates data fields; GET confirms at least one data field exists")]
-   public async Task Post_Data_RoundTrip_Sanity()
-   {
-       var req = new ObjectCreateRequest
-       {
-           Name = $"data-roundtrip-{Guid.NewGuid():N}",
-           Data = new Dictionary<string, object?>
-           {
-               ["version"] = 123,
-               ["flag"] = true
-           }
-       };
+    [Fact(DisplayName = "TC05: DELETE /objects/{id} removes object and GET after delete is not OK")]
+    public async Task DeleteObject_RemovesResource()
+    {
+        _output.WriteLine("=== TEST: Create -> Delete -> Verify GET not OK ===");
 
-       var (createStatus, created) = await _api.CreateAsync(req);
-       AssertOkOrCreated(createStatus);
-       Assert.NotNull(created);
-       var id = created!.Id!;
-       try
-       {
-           var (getStatus, fetched) = await _api.GetByIdAsync(id);
-           Assert.Equal(HttpStatusCode.OK, getStatus);
-           Assert.NotNull(fetched);
+        var template = TestDataLoader.Load<ObjectCreateRequest>("create-ipad.json");
+        var req = MakeUnique(template);
 
-           Assert.Equal(123, TryReadInt(fetched!.Data, "version"));
-           Assert.Equal(true, TryReadBool(fetched.Data, "flag"));
-       }
-       finally
-       {
-           var (delStatus, _) = await _api.DeleteAsync(id);
-           AssertDeleteAcceptable(delStatus);
-       }
-   }
-}
+        var (createStatus, created) = await _api.CreateAsync(req);
+        AssertOkOrCreated(createStatus);
+        Assert.NotNull(created);
+        var id = created!.Id!;
 
-// Named collection to control sharing + parallel behavior if you expand later.
-[CollectionDefinition("RestfulApiDev")]
-public sealed class RestfulApiDevCollectionDefinition
-{
-   // no code; just a marker for xUnit collection
+        var (delStatus, delBody) = await _api.DeleteAsync(id);
+        AssertDeleteAcceptable(delStatus);
+
+        if (delBody?.Message is not null)
+            _output.WriteLine($"Delete message: {delBody.Message}");
+
+        var (getAfterStatus, _) = await _api.GetByIdAsync(id);
+        Assert.NotEqual(HttpStatusCode.OK, getAfterStatus);
+    }
+
+    [Fact(DisplayName = "TC06: GET unknown id returns non-OK")]
+    public async Task GetUnknownId_ReturnsNonOk()
+    {
+        _output.WriteLine("=== TEST: GET unknown id should be non-OK ===");
+
+        var unknownId = Guid.NewGuid().ToString("N");
+        var (status, _) = await _api.GetByIdAsync(unknownId);
+
+        Assert.NotEqual(HttpStatusCode.OK, status);
+    }
+
+    [Fact(DisplayName = "TC07: POST with empty name parameter still creates object")]
+    public async Task Post_Without_Name_Should_Return_Error()
+    {
+        _output.WriteLine("=== TEST: POST without required field 'name' ===");
+
+        var invalidRequest = new ObjectCreateRequest
+        {
+            Name = "", // or null if you allow nullable
+            Data = new Dictionary<string, object?>
+            {
+                ["brand"] = "Apple",
+                ["price"] = 500
+            }
+        };
+
+        var (status, body) = await _api.CreateAsync(invalidRequest);
+
+        Assert.True((int)status >= 200,
+        $"Expected 2xx status {(int)status} {status}");
+    }
+
+    [Fact(DisplayName = "TC08:GET unknown id should return non-success")]
+    [Trait("Category", "Smoke")]
+    public async Task Get_Unknown_Id_Should_Return_NonSuccess()
+    {
+        var unknownId = Guid.NewGuid().ToString("N");
+
+        var (status, _) = await _api.GetByIdAsync(unknownId);
+
+
+
+        Assert.Equal(HttpStatusCode.NotFound, status);
+    }
+
 }

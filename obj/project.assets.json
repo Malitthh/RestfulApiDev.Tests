@@ -935,11 +935,11 @@
   "project": {
     "version": "1.0.0",
     "restore": {
-      "projectUniqueName": "D:\\Learning\\Source\\Repos\\RestfulApiDev.Tests\\RestfulApiDev.Tests.csproj",
+      "projectUniqueName": "D:\\Learning\\Source\\Repos\\RestfulAPI-Automation\\RestfulApiDev.Tests.csproj",
       "projectName": "RestfulApiDev.Tests",
-      "projectPath": "D:\\Learning\\Source\\Repos\\RestfulApiDev.Tests\\RestfulApiDev.Tests.csproj",
+      "projectPath": "D:\\Learning\\Source\\Repos\\RestfulAPI-Automation\\RestfulApiDev.Tests.csproj",
       "packagesPath": "C:\\Users\\MalithSenadheera\\.nuget\\packages\\",
-      "outputPath": "D:\\Learning\\Source\\Repos\\RestfulApiDev.Tests\\obj\\",
+      "outputPath": "D:\\Learning\\Source\\Repos\\RestfulAPI-Automation\\obj\\",
       "projectStyle": "PackageReference",
       "configFilePaths": [
         "C:\\Users\\MalithSenadheera\\AppData\\Roaming\\NuGet\\NuGet.Config"

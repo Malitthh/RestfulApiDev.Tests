@@ -94,3 +94,6 @@ D:\Learning\Source\Repos\RestfulApiDev.Tests\obj\Debug\net10.0\refint\RestfulApi
 D:\Learning\Source\Repos\RestfulApiDev.Tests\obj\Debug\net10.0\RestfulApiDev.Tests.pdb
 D:\Learning\Source\Repos\RestfulApiDev.Tests\obj\Debug\net10.0\RestfulApiDev.Tests.genruntimeconfig.cache
 D:\Learning\Source\Repos\RestfulApiDev.Tests\obj\Debug\net10.0\ref\RestfulApiDev.Tests.dll
+D:\Learning\Source\Repos\RestfulApiDev.Tests\obj\Debug\net10.0\RestfulApiDev.Tests.sourcelink.json
+D:\Learning\Source\Repos\RestfulApiDev.Tests\bin\Debug\net10.0\TestData\create-ipad.json
+D:\Learning\Source\Repos\RestfulApiDev.Tests\bin\Debug\net10.0\TestData\update-ipad.json

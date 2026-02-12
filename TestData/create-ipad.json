@@ -1,0 +1,12 @@
+{
+  "name": "Apple iPad Air Test",
+  "data": {
+    "brand": "Apple",
+    "model": "iPad Air",
+    "capacity": "256 GB",
+    "screenSize": 10.9,
+    "color": "Silver",
+    "price": 799.99,
+    "generation": "5th"
+  }
+}
