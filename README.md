@@ -34,6 +34,7 @@ Before you begin, ensure you have the following installed:
    cd <repository-directory>
    ```
 2. Install dependencies:
+      a. C# Dev Kit on VSCode
 
 ---
 
