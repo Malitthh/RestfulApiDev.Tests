@@ -1,6 +1,6 @@
 # Restful API Tests Framework (xUnit, C#)
 
-Integration tests against the public API:
+API Docs:
 
 - Base URL: https://api.restful-api.dev/
 - Resource: /objects
