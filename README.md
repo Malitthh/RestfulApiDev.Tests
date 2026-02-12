@@ -42,7 +42,7 @@ Before you begin, ensure you have the following installed:
 
 ```bash
 dotnet test -c Release
-
+```
 ---
 
 ### Contact
@@ -50,4 +50,3 @@ dotnet test -c Release
 For questions or support, open an issue or reach out via the repository’s contact channels.
 
 ---
-```
