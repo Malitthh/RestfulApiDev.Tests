@@ -23,7 +23,7 @@ public sealed class ObjectsCrudTests : IClassFixture<ApiFixture>
     {
         _output = output;
         _api = fixture.CreateClient(output);
-    }
+    }
 
     //Helpers
     private static ObjectCreateRequest MakeUnique(ObjectCreateRequest template, string? suffix = null)
@@ -75,7 +75,7 @@ public sealed class ObjectsCrudTests : IClassFixture<ApiFixture>
     }
 
     [Fact(DisplayName = "TC02: POST-objects using JSON testdata creates object and returns id")]
-    public async Task CreateObject_FromJson_ReturnsIdAndCreatedAt()
+    public async Task CreateObject_FromJson_ReturnsId()
     {
         var template = TestDataLoader.Load<ObjectCreateRequest>("create-ipad.json");
         var req = MakeUnique(template);
@@ -117,7 +117,7 @@ public sealed class ObjectsCrudTests : IClassFixture<ApiFixture>
             Assert.Equal(id, fetched!.Id);
             Assert.Equal(req.Name, fetched.Name);
 
-            // Verify key fields persisted
+            // Validate key fields
             Assert.Equal("Apple", RequireString(fetched.Data, "brand"));
             Assert.Equal("iPad Air", RequireString(fetched.Data, "model"));
             Assert.Equal("256 GB", RequireString(fetched.Data, "capacity"));
@@ -129,8 +129,8 @@ public sealed class ObjectsCrudTests : IClassFixture<ApiFixture>
         }
     }
 
-    [Fact(DisplayName = "TC04: PUT-objects {id} using JSON testdata updates and persists fields")]
-    public async Task UpdateObject_FromJson_PersistsChanges()
+    [Fact(DisplayName = "TC04: PUT-objects {id} using JSON testdata updates and validate fields")]
+    public async Task UpdateObject_FromJson_ValidateChanges()
     {
         var createTemplate = TestDataLoader.Load<ObjectCreateRequest>("create-ipad.json");
         var createReq = MakeUnique(createTemplate);
@@ -144,7 +144,7 @@ public sealed class ObjectsCrudTests : IClassFixture<ApiFixture>
         try
         {
             var updateTemplate = TestDataLoader.Load<ObjectCreateRequest>("update-ipad.json");
-            var updateReq = MakeUnique(updateTemplate);
+            var updateReq = MakeUnique(updateTemplate);
             var (putStatus, updated) = await _api.PutAsync(id, updateReq);
 
             Assert.Equal(HttpStatusCode.OK, putStatus);
@@ -199,7 +199,7 @@ public sealed class ObjectsCrudTests : IClassFixture<ApiFixture>
     }
 
     [Fact(DisplayName = "TC07: POST-object with empty name parameter still creates object")]
-    public async Task Post_Without_Name_Should_Return_Error()
+    public async Task Post_Without_Name_Should_Create_Object()
     {
         var invalidRequest = new ObjectCreateRequest
         {
