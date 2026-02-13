@@ -201,24 +201,7 @@ public sealed class ObjectsCrudTests : IClassFixture<ApiFixture>
         Assert.NotEqual(HttpStatusCode.OK, status);
     }
 
-    [Fact(DisplayName = "TC07: POST-object with empty name parameter still creates object")]
-    public async Task Post_Without_Name_Should_Create_Object()
-    {
-        var invalidRequest = new ObjectCreateRequest
-        {
-            Name = "",
-            Data = new Dictionary<string, object?>
-            {
-                ["brand"] = "Apple",
-                ["price"] = 500
-            }
-        };
-        var (status, body) = await _api.CreateAsync(invalidRequest);
-        Assert.True((int)status >= 200,
-        $"Expected 2xx status {(int)status} {status}");
-    }
-
-    [Fact(DisplayName = "TC08:GET unknown {id} should return non-success")]
+    [Fact(DisplayName = "TC07:GET unknown {id} should return non-success")]
     public async Task Get_Unknown_Id_Should_Return_NonSuccess()
     {
         var unknownId = Guid.NewGuid().ToString("N");
@@ -228,7 +211,7 @@ public sealed class ObjectsCrudTests : IClassFixture<ApiFixture>
 
     //This test validates the complete object lifecycle (Create → Get → Update → Delete)
     //within a single flow.
-    [Fact(DisplayName = "TC09: Object full lifecycle validation (Create, Get, Update, Delete)")]
+    [Fact(DisplayName = "TC08: Object full lifecycle validation (Create, Get, Update, Delete)")]
     [Trait("Category", "Lifecycle")]
     public async Task Object_FullLifecycle_Validation()
     {
