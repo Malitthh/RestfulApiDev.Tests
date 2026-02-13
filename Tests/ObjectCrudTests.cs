@@ -74,6 +74,8 @@ public sealed class ObjectsCrudTests : IClassFixture<ApiFixture>
         Assert.All(list!, o => Assert.False(string.IsNullOrWhiteSpace(o.Id)));
     }
 
+    //TC02–TC05 are designed as independent CRUD validation tests.
+    //Each test creates and cleans up its own data to ensure isolation.
     [Fact(DisplayName = "TC02: POST-objects using JSON testdata creates object and returns id")]
     public async Task CreateObject_FromJson_ReturnsId()
     {
@@ -93,7 +95,7 @@ public sealed class ObjectsCrudTests : IClassFixture<ApiFixture>
         Assert.Equal(10.9, RequireNumber(created.Data, "screenSize"));
         Assert.Equal(799.99, RequireNumber(created.Data, "price"));
 
-        // cleanup
+        //cleanup
         var (delStatus, _) = await _api.DeleteAsync(created.Id!);
         AssertDeleteAcceptable(delStatus);
     }
@@ -170,7 +172,7 @@ public sealed class ObjectsCrudTests : IClassFixture<ApiFixture>
         }
     }
 
-    [Fact(DisplayName = "TC05: DELETE-objects {id} removes object and GET after delete is not OK")]
+    [Fact(DisplayName = "TC05: DELETE-objects {id} removes object")]
     public async Task DeleteObject_RemovesResource()
     {
         var template = TestDataLoader.Load<ObjectCreateRequest>("create-ipad.json");
@@ -190,6 +192,7 @@ public sealed class ObjectsCrudTests : IClassFixture<ApiFixture>
         Assert.NotEqual(HttpStatusCode.OK, getAfterStatus);
     }
 
+    //Additional edge case tests
     [Fact(DisplayName = "TC06: GET-object unknown {id} returns non-OK")]
     public async Task GetUnknownId_ReturnsNonOk()
     {
@@ -216,12 +219,70 @@ public sealed class ObjectsCrudTests : IClassFixture<ApiFixture>
     }
 
     [Fact(DisplayName = "TC08:GET unknown {id} should return non-success")]
-    [Trait("Category", "Smoke")]
     public async Task Get_Unknown_Id_Should_Return_NonSuccess()
     {
         var unknownId = Guid.NewGuid().ToString("N");
         var (status, _) = await _api.GetByIdAsync(unknownId);
         Assert.Equal(HttpStatusCode.NotFound, status);
     }
+
+    //This test validates the complete object lifecycle (Create → Get → Update → Delete)
+    //within a single flow.
+    [Fact(DisplayName = "TC09: Object full lifecycle validation (Create, Get, Update, Delete)")]
+    [Trait("Category", "Lifecycle")]
+    public async Task Object_FullLifecycle_Validation()
+    {
+        //CREATE
+        var createTemplate = TestDataLoader.Load<ObjectCreateRequest>("create-ipad.json");
+        var createReq = MakeUnique(createTemplate);
+
+        var (createStatus, created) = await _api.CreateAsync(createReq);
+        AssertOkOrCreated(createStatus);
+        Assert.NotNull(created);
+        Assert.False(string.IsNullOrWhiteSpace(created!.Id));
+
+        var id = created.Id!;
+        var createdAt = created.CreatedAt;
+
+        //GET
+        var (getStatus, fetchedAfterCreate) = await _api.GetByIdAsync(id);
+        Assert.Equal(HttpStatusCode.OK, getStatus);
+        Assert.NotNull(fetchedAfterCreate);
+        Assert.Equal(id, fetchedAfterCreate!.Id);
+        Assert.Equal(createReq.Name, fetchedAfterCreate.Name);
+
+        Assert.Equal("Apple", RequireString(fetchedAfterCreate.Data, "brand"));
+        Assert.Equal("256 GB", RequireString(fetchedAfterCreate.Data, "capacity"));
+
+        //UPDATE
+        var updateTemplate = TestDataLoader.Load<ObjectCreateRequest>("update-ipad.json");
+        var updateReq = MakeUnique(updateTemplate);
+
+        var (updateStatus, updated) = await _api.PutAsync(id, updateReq);
+        Assert.Equal(HttpStatusCode.OK, updateStatus);
+        Assert.NotNull(updated);
+        Assert.Equal(id, updated!.Id);
+        Assert.Equal(updateReq.Name, updated.Name);
+        Assert.NotNull(updated.UpdatedAt);
+
+        if (createdAt is not null && updated.UpdatedAt is not null)
+            Assert.True(updated.UpdatedAt >= createdAt, "updatedAt should be >= createdAt");
+
+        //GET(after update)
+        var (getAfterUpdateStatus, fetchedAfterUpdate) = await _api.GetByIdAsync(id);
+        Assert.Equal(HttpStatusCode.OK, getAfterUpdateStatus);
+        Assert.NotNull(fetchedAfterUpdate);
+
+        Assert.Equal("512 GB", RequireString(fetchedAfterUpdate!.Data, "capacity"));
+        Assert.Equal(999.99, RequireNumber(fetchedAfterUpdate.Data, "price"));
+        Assert.Equal("Space Gray", RequireString(fetchedAfterUpdate.Data, "color"));
+
+        //DELETE
+        var (deleteStatus, _) = await _api.DeleteAsync(id);
+        AssertDeleteAcceptable(deleteStatus);
+        var (getAfterDeleteStatus, _) = await _api.GetByIdAsync(id);
+        Assert.Equal(HttpStatusCode.NotFound, getAfterDeleteStatus);
+    }
+
 
 }

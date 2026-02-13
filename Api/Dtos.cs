@@ -25,10 +25,10 @@ public sealed class ObjectResponse
     public JsonElement? Data { get; init; }
 
     [JsonPropertyName("createdAt")]
-    public DateTimeOffset? CreatedAt { get; init; }
+    public long? CreatedAt { get; set; }
 
     [JsonPropertyName("updatedAt")]
-    public DateTimeOffset? UpdatedAt { get; init; }
+    public long? UpdatedAt { get; set; }
 }
 
 public sealed class DeleteResponse

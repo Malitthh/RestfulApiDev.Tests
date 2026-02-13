@@ -41,7 +41,14 @@ Before you begin, ensure you have the following installed:
 ### Running Tests
 
 ```bash
+# Run all tests in Release configuration
 dotnet test -c Release
+
+# Run all tests with detailed console output for debugging
+dotnet test --logger "console;verbosity=detailed"
+
+# Run only tests marked with Category=Lifecycle (e.g., the lifecycle test)
+dotnet test --filter "Category=Lifecycle"
 ```
 ---
 
