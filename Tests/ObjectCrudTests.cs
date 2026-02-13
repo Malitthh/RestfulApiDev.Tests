@@ -9,7 +9,7 @@ using Xunit.Abstractions;
 
 namespace RestfulAPI.Automation.Tests;
 
-//Named collection to control execution grouping (and future expansion).
+//Named collection to control execution grouping.
 [CollectionDefinition("RestfulAPI")]
 public sealed class RestfulApiDevCollectionDefinition { }
 
