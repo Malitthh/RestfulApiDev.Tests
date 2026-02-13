@@ -55,5 +55,6 @@ dotnet test --filter "Category=Lifecycle"
 ### Contact
 
 For questions or support, open an issue or reach out via the repository’s contact channels.
+malith.akalanka@outlook.com
 
 ---
