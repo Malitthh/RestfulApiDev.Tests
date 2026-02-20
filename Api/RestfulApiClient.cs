@@ -21,7 +21,7 @@ public sealed class RestfulApiClient
         _output = output;
     }
 
-    //Public methods expected by tests
+    //Public methods expected by tests,
     public async Task<(HttpStatusCode Status, List<ObjectResponse>? Body)> GetAllAsync()
     {
         var response = await _http.GetAsync("objects");
